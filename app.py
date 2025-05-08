@@ -335,70 +335,153 @@ st.markdown("""
     position: relative;
 }
 .file-upload-container {
-    position: absolute;
-    left: 10px;
-    bottom: 8px;
-    z-index: 10;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    width: 40px;
+    height: 40px;
+    overflow: visible;
 }
 .chat-input-box {
     width: 100%;
-    padding-left: 45px;
+    padding-left: 0;
 }
+/* Fix file uploader positioning */
 [data-testid="stFileUploader"] {
+    position: absolute;
+    top: -10px;   # nach oben verschoben
+    left: 0;
     width: 40px;
     height: 40px;
-    overflow: hidden;
+    z-index: 20;
 }
 [data-testid="stFileUploader"] section {
-    opacity: 0;
     position: absolute;
+    top: 0 !important;
+    left: 0 !important;
     width: 40px;
     height: 40px;
+    opacity: 0;
     cursor: pointer;
+}
+[data-testid="stFileUploader"] section > div {
+    padding: 0 !important;
+}
+[data-testid="stFileUploader"] button {
+    width: 40px !important;
+    height: 40px !important;
+    opacity: 0;
+    cursor: pointer;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 100;
 }
 .upload-icon {
     position: absolute;
-    left: 12px;
-    bottom: 10px;
     font-size: 24px;
     color: #E30613;
     cursor: pointer;
-    z-index: 5;
+    z-index: 10;
+    background-color: transparent;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+.upload-icon:hover {
+    background-color: rgba(227, 6, 19, 0.1);
+}
+
+/* Fix any stacking context issues with columns */
+[data-testid="stHorizontalBlock"] {
+    align-items: center;
 }
 </style>
-<div class="chat-input-container">
-    <div class="file-upload-container">
-        <div class="upload-icon">+</div>
-    </div>
-    <div class="chat-input-box">
-    </div>
-</div>
+
+<script>
+// Add JavaScript to enhance the click area
+document.addEventListener('DOMContentLoaded', function() {
+    const fixFileUploader = function() {
+        const uploadIcon = document.querySelector('.upload-icon');
+        if (uploadIcon) {
+            const fileUploaders = document.querySelectorAll('[data-testid="stFileUploader"]');
+            fileUploaders.forEach(uploader => {
+                // Make sure the uploader is positioned at the icon
+                const rect = uploadIcon.getBoundingClientRect();
+                uploader.style.top = rect.top + 'px';
+                uploader.style.left = rect.left + 'px';
+            });
+        }
+    };
+    
+    // Run initially and on resize
+    fixFileUploader();
+    window.addEventListener('resize', fixFileUploader);
+});
+</script>
 """, unsafe_allow_html=True)
 
-# Place file uploader in a container that will be positioned by CSS
+# Place file uploader and input field side by side
 input_container = st.container()
 with input_container:
-    col1, col2 = st.columns([1, 20])
+    col1, col2 = st.columns([1, 15])  # Adjusted column ratio
     with col1:
-        uploaded_file = st.file_uploader("", type=["png", "jpg", "jpeg", "pdf", "doc", "docx", "txt"], 
-                                     label_visibility="collapsed", key="file_upload")
+        # Create a more visible and interactive file uploader
+        st.markdown("""
+        <div class="file-upload-container">
+            <div class="upload-icon">📎</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Use a key that forces re-rendering if there were positioning issues
+        upload_key = "file_upload_" + str(int(time.time()))
+        uploaded_file = st.file_uploader(
+            "Upload files", 
+            type=["png", "jpg", "jpeg", "pdf", "doc", "docx", "txt"], 
+            label_visibility="collapsed", 
+            key=upload_key
+        )
+        
+        # Add a visual feedback when a file is selected
+        if uploaded_file is not None:
+            st.session_state['file_selected'] = True
+    
     with col2:
         user_input = st.chat_input("Schreibe eine Nachricht…")
 
 # Handle user input and file upload
-if user_input or uploaded_file:
+if user_input or (uploaded_file is not None):
     # Handle message input
     if user_input:
         st.session_state['messages'].append({"role": "user", "content": user_input})
     
-    # Handle file upload
-    if uploaded_file:
-        file_type = uploaded_file.type.split('/')[0]
-        if file_type == 'image':
-            st.session_state['messages'].append({"role": "user", "content": f"[Uploaded an image: {uploaded_file.name}]"})
-        else:
-            st.session_state['messages'].append({"role": "user", "content": f"[Uploaded a file: {uploaded_file.name}]"})
-        
+    # Handle file upload - using a more explicit check
+    if uploaded_file is not None:
+        try:
+            file_type = uploaded_file.type.split('/')[0]
+            if file_type == 'image':
+                # For images, display the image in the chat
+                st.session_state['messages'].append({"role": "user", "content": f"[Bild hochgeladen: {uploaded_file.name}]"})
+            else:
+                # For documents, display a file upload message
+                st.session_state['messages'].append({"role": "user", "content": f"[Datei hochgeladen: {uploaded_file.name}]"})
+            
+            # Display a success message for debugging
+            st.success(f"File '{uploaded_file.name}' successfully uploaded!")
+        except Exception as e:
+            st.error(f"Error processing uploaded file: {str(e)}")
+    
     # Liste mit Beispielantworten
     example_responses = [
         "Das ist eine interessante Frage!",
